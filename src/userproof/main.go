@@ -193,7 +193,7 @@ func main() {
 	prevAccountCounts := 0
 	for _, k := range accountAssetKeys {
 		accounts := accountsMap[k]
-		if currentAccountCounts >= len(accounts) + prevAccountCounts {
+		if currentAccountCounts >= len(accounts)+prevAccountCounts {
 			prevAccountCounts = len(accounts) + prevAccountCounts
 			continue
 		}

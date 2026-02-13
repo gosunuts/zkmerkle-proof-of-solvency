@@ -18,9 +18,9 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/poseidon"
-	"github.com/shopspring/decimal"
-	"github.com/klauspost/compress/s2"
 	"github.com/go-sql-driver/mysql"
+	"github.com/klauspost/compress/s2"
+	"github.com/shopspring/decimal"
 )
 
 func ConvertTierRatiosToBytes(tiersRatio []TierRatio) [][]byte {
@@ -233,7 +233,7 @@ func ParseUserDataSet(dirname string) (map[int][]AccountInfo, []CexAssetInfo, er
 	userFileNames := make([]string, 0)
 
 	type UserParseRes struct {
-		accounts map[int][]AccountInfo
+		accounts      map[int][]AccountInfo
 		invalidAccNum int
 	}
 	results := make([]chan UserParseRes, workersNum)
@@ -272,7 +272,7 @@ func ParseUserDataSet(dirname string) (map[int][]AccountInfo, []CexAssetInfo, er
 					panic(err.Error())
 				}
 				results[workerId] <- UserParseRes{
-					accounts: tmpAccountInfo,
+					accounts:      tmpAccountInfo,
 					invalidAccNum: invalidAccountNum,
 				}
 			}

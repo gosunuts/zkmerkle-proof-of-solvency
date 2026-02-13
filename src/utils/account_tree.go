@@ -1,10 +1,10 @@
 package utils
 
 import (
+	"encoding/base64"
 	"fmt"
 	"hash"
 	"time"
-	"encoding/base64"
 
 	bsmt "github.com/bnb-chain/zkbnb-smt"
 	"github.com/bnb-chain/zkbnb-smt/database"

@@ -12,11 +12,11 @@ import (
 
 const (
 	// BatchCreateUserOpsCounts = 864
-	AccountTreeDepth         = 28
-	AssetCounts              = 500
+	AccountTreeDepth = 28
+	AssetCounts      = 500
 	// TierCount: must be even number, the cex assets commitment will depend on the TierCount/2 parts
-	TierCount				 = 12
-	R1csBatchSize            = 1000000
+	TierCount     = 12
+	R1csBatchSize = 1000000
 )
 
 var (
@@ -33,79 +33,79 @@ var (
 	Uint64MaxValueFr              = new(fr.Element).SetBigInt(Uint64MaxValueBigInt)
 	Uint64MaxValueFrSquare        = new(fr.Element).SetBigInt(Uint64MaxValueBigIntSquare)
 	Uint8MaxValueFr               = new(fr.Element).SetBigInt(Uint8MaxValueBigInt)
-	Uint16MaxValueFr 			  = new(fr.Element).SetBigInt(Uint16MaxValueBigInt)
+	Uint16MaxValueFr              = new(fr.Element).SetBigInt(Uint16MaxValueBigInt)
 	Uint126MaxValueFr             = new(fr.Element).SetBigInt(Uint126MaxValueBigInt)
 	Uint134MaxValueFr             = new(fr.Element).SetBigInt(Uint134MaxValueBigInt)
-	MaxTierBoundaryValueFr		  = new(fr.Element).SetBigInt(MaxTierBoundaryValue)
-	PercentageMultiplierFr     	  = new(fr.Element).SetBigInt(PercentageMultiplier)
+	MaxTierBoundaryValueFr        = new(fr.Element).SetBigInt(MaxTierBoundaryValue)
+	PercentageMultiplierFr        = new(fr.Element).SetBigInt(PercentageMultiplier)
 
-	AssetTypeForTwoDigits         = map[string]bool{
-		"BTTC":  true,
-		"bttc":  true,
-		"SHIB":  true,
-		"shib":  true,
-		"LUNC":  true,
-		"lunc":  true,
-		"XEC":   true,
-		"xec":   true,
-		"WIN":   true,
-		"win":   true,
-		"BIDR":  true,
-		"bidr":  true,
-		"SPELL": true,
-		"spell": true,
-		"HOT":   true,
-		"hot":   true,
-		"DOGE":  true,
-		"doge":  true,
-        "PEPE":  true,
-		"pepe":  true,
-		"FLOKI": true,
-		"floki": true,
-		"IDRT":  true,
-		"idrt":  true,
-		"DOGS":  true,
-		"dogs":  true,
-		"BONK":  true,
-		"bonk":  true,
-		"1000SATS": true,
-		"1000sats": true,
-        "NEIRO": true,
-		"neiro": true,
-		"1000PEPPER" : true,
-		"1000pepper" : true,
-		"NOT": true,
-		"not": true,
-		"NFT": true,
-		"nft": true,
-		"BOME": true,
-		"bome": true,
+	AssetTypeForTwoDigits = map[string]bool{
+		"BTTC":       true,
+		"bttc":       true,
+		"SHIB":       true,
+		"shib":       true,
+		"LUNC":       true,
+		"lunc":       true,
+		"XEC":        true,
+		"xec":        true,
+		"WIN":        true,
+		"win":        true,
+		"BIDR":       true,
+		"bidr":       true,
+		"SPELL":      true,
+		"spell":      true,
+		"HOT":        true,
+		"hot":        true,
+		"DOGE":       true,
+		"doge":       true,
+		"PEPE":       true,
+		"pepe":       true,
+		"FLOKI":      true,
+		"floki":      true,
+		"IDRT":       true,
+		"idrt":       true,
+		"DOGS":       true,
+		"dogs":       true,
+		"BONK":       true,
+		"bonk":       true,
+		"1000SATS":   true,
+		"1000sats":   true,
+		"NEIRO":      true,
+		"neiro":      true,
+		"1000PEPPER": true,
+		"1000pepper": true,
+		"NOT":        true,
+		"not":        true,
+		"NFT":        true,
+		"nft":        true,
+		"BOME":       true,
+		"bome":       true,
 		"1MBABYDOGE": true,
 		"1mbabydoge": true,
-		"HMSTR": true,
-		"hmstr": true,
-		"WLFI": true,
-		"wlfi": true,
-		"PUMP": true,
-		"pump": true,
-		"MONKY": true,
-		"monky": true,
+		"HMSTR":      true,
+		"hmstr":      true,
+		"WLFI":       true,
+		"wlfi":       true,
+		"PUMP":       true,
+		"pump":       true,
+		"MONKY":      true,
+		"monky":      true,
 		"1000CHEEMS": true,
 		"1000cheems": true,
-		"IDR": true,
-		"idr": true,
+		"IDR":        true,
+		"idr":        true,
 	}
 	// the key is the number of assets user own
 	// the value is the number of batch create user ops
-	BatchCreateUserOpsCountsTiers = map[int]int {
+	BatchCreateUserOpsCountsTiers = map[int]int{
 		500: 92,
-		50: 700,
+		50:  700,
 	}
 	AssetCountsTiers = make([]int, 0)
 
 	// one Fr element is 252 bits, it contains 16 16-bit elements at most
-	PowersOfSixteenBits           [15]fr.Element
-	MaxExecutionTimeHint         = hints.New("MAX_EXECUTION_TIME(10000)")
+	PowersOfSixteenBits  [15]fr.Element
+	MaxExecutionTimeHint = hints.New("MAX_EXECUTION_TIME(10000)")
 )
 
 func init() {

@@ -91,8 +91,8 @@ func main() {
 
 		// clear redis data
 		client := redis.NewClient(&redis.Options{
-			Addr:            dbtoolConfig.Redis.Host,
-			Password:        dbtoolConfig.Redis.Password,
+			Addr:     dbtoolConfig.Redis.Host,
+			Password: dbtoolConfig.Redis.Password,
 		})
 		client.FlushAll(context.Background())
 		fmt.Println("redis data drop successfully")
@@ -231,7 +231,7 @@ func main() {
 		taskQueueName := "por_batch_task_queue_" + dbtoolConfig.DbSuffix
 		ctx := context.Background()
 		redisCli := redis.NewClient(&redis.Options{
-			Addr: dbtoolConfig.Redis.Host,
+			Addr:     dbtoolConfig.Redis.Host,
 			Password: dbtoolConfig.Redis.Password,
 		})
 		for _, status := range witessStatusList {

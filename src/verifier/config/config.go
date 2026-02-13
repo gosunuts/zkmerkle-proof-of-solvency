@@ -6,19 +6,19 @@ import (
 )
 
 type Config struct {
-	ProofTable    string
-	ZkKeyName     []string
+	ProofTable       string
+	ZkKeyName        []string
 	AssetsCountTiers []int
-	CexAssetsInfo []utils.CexAssetInfo
+	CexAssetsInfo    []utils.CexAssetInfo
 }
 
 type UserConfig struct {
-	AccountIndex  uint32
-	AccountIdHash string
-	TotalEquity   big.Int
-	TotalDebt     big.Int
+	AccountIndex    uint32
+	AccountIdHash   string
+	TotalEquity     big.Int
+	TotalDebt       big.Int
 	TotalCollateral big.Int
-	Root          string
-	Assets        []utils.AccountAsset
-	Proof         []string
+	Root            string
+	Assets          []utils.AccountAsset
+	Proof           []string
 }

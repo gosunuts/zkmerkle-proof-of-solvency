@@ -32,14 +32,14 @@ type Prover struct {
 	proofModel   ProofModel
 	redisCli     *redis.Client
 
-	VerifyingKey groth16.VerifyingKey
-	ProvingKey   groth16.ProvingKey
-	SessionName   []string
-	AssetsCountTiers    []int
-	R1cs          constraint.ConstraintSystem
+	VerifyingKey     groth16.VerifyingKey
+	ProvingKey       groth16.ProvingKey
+	SessionName      []string
+	AssetsCountTiers []int
+	R1cs             constraint.ConstraintSystem
 
 	CurrentSnarkParamsInUse int
-	TaskQueueName string
+	TaskQueueName           string
 }
 
 func NewProver(config *config.Config) *Prover {
@@ -49,19 +49,19 @@ func NewProver(config *config.Config) *Prover {
 	}
 	// Set up the redis client.
 	redisCli := redis.NewClient(&redis.Options{
-		Addr:    config.Redis.Host,
+		Addr:     config.Redis.Host,
 		Password: config.Redis.Password,
 	})
 	taskQueueName := "por_batch_task_queue_" + config.DbSuffix
 
 	prover := Prover{
-		witnessModel: witness.NewWitnessModel(db, config.DbSuffix),
-		proofModel:   NewProofModel(db, config.DbSuffix),
-		redisCli:     redisCli,
-		SessionName:  config.ZkKeyName,
-		AssetsCountTiers:  config.AssetsCountTiers,
+		witnessModel:            witness.NewWitnessModel(db, config.DbSuffix),
+		proofModel:              NewProofModel(db, config.DbSuffix),
+		redisCli:                redisCli,
+		SessionName:             config.ZkKeyName,
+		AssetsCountTiers:        config.AssetsCountTiers,
 		CurrentSnarkParamsInUse: 0,
-		TaskQueueName: taskQueueName,
+		TaskQueueName:           taskQueueName,
 	}
 
 	// std.RegisterHints()
@@ -285,9 +285,9 @@ func (p *Prover) LoadSnarkParamsOnce(targerAssetsCount int) {
 	if targerAssetsCount == p.CurrentSnarkParamsInUse {
 		return
 	}
-	
+
 	index := -1
-	for i, v :=  range p.AssetsCountTiers {
+	for i, v := range p.AssetsCountTiers {
 		if targerAssetsCount == v {
 			index = i
 			break
@@ -329,7 +329,7 @@ func (p *Prover) LoadSnarkParamsOnce(targerAssetsCount int) {
 	runtime.GC()
 	et := time.Now()
 	fmt.Println("finish loading r1cs.... the time cost is ", et.Sub(s))
-	
+
 	// read proving and verifying keys
 	fmt.Println("begin loading proving key of ", targerAssetsCount, " assets")
 	s = time.Now()
@@ -346,7 +346,7 @@ func (p *Prover) LoadSnarkParamsOnce(targerAssetsCount int) {
 	fmt.Println("proving key read size is ", n)
 	et = time.Now()
 	fmt.Println("finish loading proving key... the time cost is ", et.Sub(s))
-	
+
 	fmt.Println("begin loading verifying key of ", targerAssetsCount, " assets")
 	s = time.Now()
 	vkFromFile, err := os.ReadFile(p.SessionName[index] + ".vk")

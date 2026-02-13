@@ -46,7 +46,7 @@ func TestMockProver(t *testing.T) {
 		t.Errorf("error: %s\n", err.Error())
 	}
 	largeArray := bytes.Repeat([]byte{'a'}, 1780)
-	
+
 	startTime := time.Now()
 	datas := make([]witness.BatchWitness, 100)
 	for i := 0; i < 1000; i++ {
@@ -56,8 +56,8 @@ func TestMockProver(t *testing.T) {
 			// 	status = witness.StatusReceived
 			// }
 			w := witness.BatchWitness{
-				Height: int64(100*i + j),
-				Status: int64(status),
+				Height:      int64(100*i + j),
+				Status:      int64(status),
 				WitnessData: string(largeArray),
 			}
 			datas[j] = w
@@ -114,11 +114,11 @@ func TestMockProver(t *testing.T) {
 
 	config := &config.Config{
 		MysqlDataSource: dbUri,
-		DbSuffix: "test",
+		DbSuffix:        "test",
 		Redis: struct {
 			Host     string
 			Password string
-		} {
+		}{
 			Host: "127.0.0.1:6379",
 		},
 	}
@@ -171,7 +171,7 @@ func TestMockProver(t *testing.T) {
 						panic(err.Error())
 					}
 				}
-			}			
+			}
 		}(i)
 	}
 	wg.Wait()

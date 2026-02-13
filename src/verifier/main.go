@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"strconv"
 	"runtime"
+	"strconv"
 	"sync"
 
 	"github.com/binance/zkmerkle-proof-of-solvency/circuit"
@@ -36,7 +36,6 @@ func LoadVerifyingKey(vkFileName string) (groth16.VerifyingKey, error) {
 	}
 	return vk, nil
 }
-
 
 func main() {
 	userFlag := flag.Bool("user", false, "flag which indicates user proof verification")
@@ -84,7 +83,7 @@ func main() {
 		} else {
 			fmt.Println("verify failed...")
 		}
-	} else if (*hashFlag) {
+	} else if *hashFlag {
 		args := flag.Args()
 		if len(args) != 2 {
 			panic("invalid hash command, it needs two arguments")
@@ -181,9 +180,9 @@ func main() {
 			workersNum = runtime.NumCPU()
 		}
 		averageProofCount := (len(proofs) + workersNum - 1) / workersNum
-		
+
 		type ProofMetaData struct {
-			accountTreeRoots [][]byte
+			accountTreeRoots        [][]byte
 			cexAssetListCommitments [][]byte
 		}
 		type SafeProofMap struct {

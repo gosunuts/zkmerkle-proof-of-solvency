@@ -37,14 +37,14 @@ type (
 	}
 
 	UserConfig struct {
-		AccountIndex  uint32
-		AccountIdHash string
-		TotalEquity   *big.Int
-		TotalDebt     *big.Int
+		AccountIndex    uint32
+		AccountIdHash   string
+		TotalEquity     *big.Int
+		TotalDebt       *big.Int
 		TotalCollateral *big.Int
-		Assets        []utils.AccountAsset
-		Root          string
-		Proof         [][]byte
+		Assets          []utils.AccountAsset
+		Root            string
+		Proof           [][]byte
 	}
 )
 

@@ -18,10 +18,10 @@ import (
 	"github.com/binance/zkmerkle-proof-of-solvency/src/witness/config"
 	bsmt "github.com/bnb-chain/zkbnb-smt"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/poseidon"
+	"github.com/klauspost/compress/s2"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"github.com/klauspost/compress/s2"
 )
 
 type Witness struct {
