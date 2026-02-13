@@ -16,9 +16,6 @@ require (
 	github.com/klauspost/compress v1.17.10
 	github.com/redis/go-redis/v9 v9.6.1
 	github.com/shopspring/decimal v1.3.1
-	gorm.io/driver/mysql v1.4.7
-	gorm.io/gorm v1.25.0
-	gorm.io/hints v1.1.2
 )
 
 require (
@@ -45,8 +42,6 @@ require (
 	github.com/holiman/uint256 v1.2.3 // indirect
 	github.com/ingonyama-zk/icicle v1.1.0 // indirect
 	github.com/ingonyama-zk/iciclegnark v0.1.0 // indirect
-	github.com/jinzhu/inflection v1.0.0 // indirect
-	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mmcloughlin/addchain v0.4.0 // indirect

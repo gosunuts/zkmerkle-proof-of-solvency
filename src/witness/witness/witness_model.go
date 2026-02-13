@@ -1,12 +1,11 @@
 package witness
 
 import (
+	"database/sql"
+	"fmt"
 	"time"
 
 	"github.com/binance/zkmerkle-proof-of-solvency/src/utils"
-
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 const (
@@ -37,21 +36,24 @@ type (
 
 	defaultWitnessModel struct {
 		table string
-		DB    *gorm.DB
+		db    *utils.DB
 	}
 
 	BatchWitness struct {
-		gorm.Model
-		Height      int64 `gorm:"index:idx_height,unique"`
+		ID          uint64
+		CreatedAt   time.Time
+		UpdatedAt   time.Time
+		DeletedAt   *time.Time
+		Height      int64
 		WitnessData string
-		Status      int64 `gorm:"index"`
+		Status      int64
 	}
 )
 
-func NewWitnessModel(db *gorm.DB, suffix string) WitnessModel {
+func NewWitnessModel(db *utils.DB, suffix string) WitnessModel {
 	return &defaultWitnessModel{
 		table: TableNamePrefix + suffix,
-		DB:    db,
+		db:    db,
 	}
 }
 
@@ -60,169 +62,253 @@ func (m *defaultWitnessModel) TableName() string {
 }
 
 func (m *defaultWitnessModel) CreateBatchWitnessTable() error {
-	return m.DB.Table(m.table).AutoMigrate(BatchWitness{})
+	query := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+		id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+		deleted_at TIMESTAMP NULL DEFAULT NULL,
+		height BIGINT NOT NULL UNIQUE,
+		witness_data LONGTEXT NOT NULL,
+		status BIGINT NOT NULL,
+		INDEX idx_status (status)
+	)`, m.table)
+	_, err := m.db.Exec(query)
+	return err
 }
 
 func (m *defaultWitnessModel) DropBatchWitnessTable() error {
-	return m.DB.Migrator().DropTable(m.table)
+	query := fmt.Sprintf("DROP TABLE IF EXISTS %s", m.table)
+	_, err := m.db.Exec(query)
+	return err
 }
 
 func (m *defaultWitnessModel) GetLatestBatchWitnessHeight() (batchNumber int64, err error) {
 	var height int64
-	dbTx := m.DB.Clauses(utils.MaxExecutionTimeHint).Table(m.table).Select("height").Order("height desc").Limit(1).Find(&height)
-	if dbTx.Error != nil {
-		return 0, utils.ConvertMysqlErrToDbErr(dbTx.Error)
-	} else if dbTx.RowsAffected == 0 {
+	query := fmt.Sprintf("SELECT height FROM %s WHERE deleted_at IS NULL ORDER BY height DESC LIMIT 1", m.table)
+	row := m.db.QueryRowWithTimeout(query)
+	err = row.Scan(&height)
+	if err == sql.ErrNoRows {
 		return 0, utils.DbErrNotFound
+	}
+	if err != nil {
+		return 0, utils.ConvertMysqlErrToDbErr(err)
 	}
 	return height, nil
 }
 
 func (m *defaultWitnessModel) GetLatestBatchWitness() (witness *BatchWitness, err error) {
 	var height int64
-	dbTx := m.DB.Clauses(utils.MaxExecutionTimeHint).Table(m.table).Debug().Select("height").Order("height desc").Limit(1).Find(&height)
-	if dbTx.Error != nil {
-		return nil, utils.ConvertMysqlErrToDbErr(dbTx.Error)
-	} else if dbTx.RowsAffected == 0 {
+	query := fmt.Sprintf("SELECT height FROM %s WHERE deleted_at IS NULL ORDER BY height DESC LIMIT 1", m.table)
+	row := m.db.QueryRowWithTimeout(query)
+	err = row.Scan(&height)
+	if err == sql.ErrNoRows {
 		return nil, utils.DbErrNotFound
+	}
+	if err != nil {
+		return nil, utils.ConvertMysqlErrToDbErr(err)
 	}
 
 	return m.GetBatchWitnessByHeight(height)
 }
 
 func (m *defaultWitnessModel) GetLatestBatchWitnessByStatus(status int64) (witness *BatchWitness, err error) {
-	dbTx := m.DB.Clauses(utils.MaxExecutionTimeHint).Table(m.table).Unscoped().Where("status = ?", status).Limit(1).Find(&witness)
-	if dbTx.Error != nil {
-		return nil, utils.ConvertMysqlErrToDbErr(dbTx.Error)
-	} else if dbTx.RowsAffected == 0 {
+	witness = &BatchWitness{}
+	query := fmt.Sprintf("SELECT id, created_at, updated_at, deleted_at, height, witness_data, status FROM %s WHERE status = ? AND deleted_at IS NULL LIMIT 1", m.table)
+	row := m.db.QueryRowWithTimeout(query, status)
+	err = row.Scan(&witness.ID, &witness.CreatedAt, &witness.UpdatedAt, &witness.DeletedAt, &witness.Height, &witness.WitnessData, &witness.Status)
+	if err == sql.ErrNoRows {
 		return nil, utils.DbErrNotFound
+	}
+	if err != nil {
+		return nil, utils.ConvertMysqlErrToDbErr(err)
 	}
 	return witness, nil
 }
 
-func (m *defaultWitnessModel) GetAndUpdateBatchesWitnessByStatus(beforeStatus, afterStatus int64, count int32) (witness [](*BatchWitness), err error) {
-
-	err = m.DB.Table(m.table).Transaction(func(tx *gorm.DB) error {
-		// dbTx := tx.Where("status = ?", beforeStatus).Limit(int(count)).Clauses(clause.Locking{Strength: "UPDATE",  Options: "SKIP LOCKED"}).Find(&witness)
-		dbTx := tx.Clauses(utils.MaxExecutionTimeHint).Debug().Where("status = ?", beforeStatus).Order("height asc").Limit(int(count)).Clauses(clause.Locking{Strength: "UPDATE"}).Find(&witness)
-
-		if dbTx.Error != nil {
-			return utils.ConvertMysqlErrToDbErr(dbTx.Error)
-		} else if dbTx.RowsAffected == 0 {
-			return utils.DbErrNotFound
+func (m *defaultWitnessModel) GetAndUpdateBatchesWitnessByStatus(beforeStatus, afterStatus int64, count int32) (witnesses [](*BatchWitness), err error) {
+	tx, err := m.db.BeginTransaction()
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		} else {
+			tx.Commit()
 		}
+	}()
 
-		updateObject := make(map[string]interface{})
-		for _, w := range witness {
-			updateObject["Status"] = afterStatus
-			dbTx := tx.Debug().Where("height = ?", w.Height).Updates(&updateObject)
+	// Select witnesses with FOR UPDATE lock
+	query := fmt.Sprintf("SELECT id, created_at, updated_at, deleted_at, height, witness_data, status FROM %s WHERE status = ? AND deleted_at IS NULL ORDER BY height ASC LIMIT ? FOR UPDATE", m.table)
+	rows, err := tx.Query(query, beforeStatus, count)
+	if err != nil {
+		return nil, utils.ConvertMysqlErrToDbErr(err)
+	}
+	defer rows.Close()
 
-			if dbTx.Error != nil {
-				return dbTx.Error
-			}
+	for rows.Next() {
+		witness := &BatchWitness{}
+		err = rows.Scan(&witness.ID, &witness.CreatedAt, &witness.UpdatedAt, &witness.DeletedAt, &witness.Height, &witness.WitnessData, &witness.Status)
+		if err != nil {
+			return nil, err
 		}
-		return nil
-	})
-	return witness, err
+		witnesses = append(witnesses, witness)
+	}
+
+	if len(witnesses) == 0 {
+		return nil, utils.DbErrNotFound
+	}
+
+	// Update status for each witness
+	updateQuery := fmt.Sprintf("UPDATE %s SET status = ?, updated_at = NOW() WHERE height = ?", m.table)
+	for _, w := range witnesses {
+		_, err = tx.Exec(updateQuery, afterStatus, w.Height)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return witnesses, nil
 }
 
-func (m *defaultWitnessModel) GetAndUpdateBatchesWitnessByHeight(height int, beforeStatus, afterStatus int64) (witness [](*BatchWitness), err error) {
-	err = m.DB.Table(m.table).Transaction(func(tx *gorm.DB) error {
-		// dbTx := tx.Where("status = ?", beforeStatus).Limit(int(count)).Clauses(clause.Locking{Strength: "UPDATE",  Options: "SKIP LOCKED"}).Find(&witness)
-		dbTx := tx.Clauses(utils.MaxExecutionTimeHint).Where("height = ? and status = ?", height, beforeStatus).Order("height asc").Find(&witness)
-
-		if dbTx.Error != nil {
-			return utils.ConvertMysqlErrToDbErr(dbTx.Error)
-		} else if dbTx.RowsAffected == 0 {
-			return utils.DbErrNotFound
+func (m *defaultWitnessModel) GetAndUpdateBatchesWitnessByHeight(height int, beforeStatus, afterStatus int64) (witnesses [](*BatchWitness), err error) {
+	tx, err := m.db.BeginTransaction()
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		} else {
+			tx.Commit()
 		}
+	}()
 
-		updateObject := make(map[string]interface{})
-		for _, w := range witness {
-			updateObject["Status"] = afterStatus
-			dbTx := tx.Debug().Where("height = ?", w.Height).Updates(&updateObject)
+	// Select witnesses with FOR UPDATE lock
+	query := fmt.Sprintf("SELECT id, created_at, updated_at, deleted_at, height, witness_data, status FROM %s WHERE height = ? AND status = ? AND deleted_at IS NULL ORDER BY height ASC", m.table)
+	rows, err := tx.Query(query, height, beforeStatus)
+	if err != nil {
+		return nil, utils.ConvertMysqlErrToDbErr(err)
+	}
+	defer rows.Close()
 
-			if dbTx.Error != nil {
-				return dbTx.Error
-			}
+	for rows.Next() {
+		witness := &BatchWitness{}
+		err = rows.Scan(&witness.ID, &witness.CreatedAt, &witness.UpdatedAt, &witness.DeletedAt, &witness.Height, &witness.WitnessData, &witness.Status)
+		if err != nil {
+			return nil, err
 		}
-		return nil
-	})
-	return witness, err
+		witnesses = append(witnesses, witness)
+	}
+
+	if len(witnesses) == 0 {
+		return nil, utils.DbErrNotFound
+	}
+
+	// Update status for each witness
+	updateQuery := fmt.Sprintf("UPDATE %s SET status = ?, updated_at = NOW() WHERE height = ?", m.table)
+	for _, w := range witnesses {
+		_, err = tx.Exec(updateQuery, afterStatus, w.Height)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return witnesses, nil
 }
 
 func (m *defaultWitnessModel) GetBatchWitnessByHeight(height int64) (witness *BatchWitness, err error) {
-	dbTx := m.DB.Clauses(utils.MaxExecutionTimeHint).Table(m.table).Where("height = ?", height).Limit(1).Find(&witness)
-	if dbTx.Error != nil {
-		return nil, utils.ConvertMysqlErrToDbErr(dbTx.Error)
-	} else if dbTx.RowsAffected == 0 {
+	witness = &BatchWitness{}
+	query := fmt.Sprintf("SELECT id, created_at, updated_at, deleted_at, height, witness_data, status FROM %s WHERE height = ? AND deleted_at IS NULL LIMIT 1", m.table)
+	row := m.db.QueryRowWithTimeout(query, height)
+	err = row.Scan(&witness.ID, &witness.CreatedAt, &witness.UpdatedAt, &witness.DeletedAt, &witness.Height, &witness.WitnessData, &witness.Status)
+	if err == sql.ErrNoRows {
 		return nil, utils.DbErrNotFound
+	}
+	if err != nil {
+		return nil, utils.ConvertMysqlErrToDbErr(err)
 	}
 	return witness, nil
 }
 
 func (m *defaultWitnessModel) CreateBatchWitness(witness []BatchWitness) error {
-	//if witness.Height > 1 {
-	//	_, err := m.GetBatchWitnessByHeight(witness.Height - 1)
-	//	if err != nil {
-	//		return fmt.Errorf("previous witness does not exist")
-	//	}
-	//}
+	if len(witness) == 0 {
+		return nil
+	}
 
-	dbTx := m.DB.Table(m.table).Create(witness)
-	if dbTx.Error != nil {
-		return dbTx.Error
+	query := fmt.Sprintf("INSERT INTO %s (height, witness_data, status, created_at, updated_at) VALUES (?, ?, ?, NOW(), NOW())", m.table)
+	for _, w := range witness {
+		_, err := m.db.Exec(query, w.Height, w.WitnessData, w.Status)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 func (m *defaultWitnessModel) GetAllBatchHeightsByStatus(status int64, limit int, offset int) (witnessHeights []int64, err error) {
-	dbTx := m.DB.Clauses(utils.MaxExecutionTimeHint).Table(m.table).Debug().Select("height").Where("status = ?", status).Offset(offset).Limit(limit).Find(&witnessHeights)
-	if dbTx.Error != nil {
-		return nil, utils.ConvertMysqlErrToDbErr(dbTx.Error)
-	} else if dbTx.RowsAffected == 0 {
+	query := fmt.Sprintf("SELECT height FROM %s WHERE status = ? AND deleted_at IS NULL ORDER BY height ASC LIMIT ? OFFSET ?", m.table)
+	rows, err := m.db.QueryWithTimeout(query, status, limit, offset)
+	if err != nil {
+		return nil, utils.ConvertMysqlErrToDbErr(err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var height int64
+		err = rows.Scan(&height)
+		if err != nil {
+			return nil, err
+		}
+		witnessHeights = append(witnessHeights, height)
+	}
+
+	if len(witnessHeights) == 0 {
 		return nil, utils.DbErrNotFound
 	}
 	return witnessHeights, nil
 }
 
 func (m *defaultWitnessModel) UpdateBatchWitnessStatus(witness *BatchWitness, status int64) error {
-	dbTx := m.DB.Table(m.table).Where("height = ?", witness.Height).Updates(BatchWitness{
-		Model: gorm.Model{
-			UpdatedAt: time.Now(),
-		},
-		Status: status,
-	})
-	return dbTx.Error
+	query := fmt.Sprintf("UPDATE %s SET status = ?, updated_at = NOW() WHERE height = ?", m.table)
+	_, err := m.db.Exec(query, status, witness.Height)
+	return err
 }
 
 func (m *defaultWitnessModel) GetRowCounts() (counts []int64, err error) {
 	var count int64
-	dbTx := m.DB.Clauses(utils.MaxExecutionTimeHint).Table(m.table).Count(&count)
-	if dbTx.Error != nil {
-		return nil, utils.ConvertMysqlErrToDbErr(dbTx.Error)
+	query := fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE deleted_at IS NULL", m.table)
+	row := m.db.QueryRowWithTimeout(query)
+	err = row.Scan(&count)
+	if err != nil {
+		return nil, utils.ConvertMysqlErrToDbErr(err)
 	}
 	counts = append(counts, count)
-	var publishedCount int64
 
-	dbTx = m.DB.Clauses(utils.MaxExecutionTimeHint).Table(m.table).Debug().Where("status = ?", StatusPublished).Count(&publishedCount)
-	if dbTx.Error != nil {
-		return nil, utils.ConvertMysqlErrToDbErr(dbTx.Error)
+	var publishedCount int64
+	query = fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE status = ? AND deleted_at IS NULL", m.table)
+	row = m.db.QueryRowWithTimeout(query, StatusPublished)
+	err = row.Scan(&publishedCount)
+	if err != nil {
+		return nil, utils.ConvertMysqlErrToDbErr(err)
 	}
 	counts = append(counts, publishedCount)
 
 	var pendingCount int64
-	dbTx = m.DB.Clauses(utils.MaxExecutionTimeHint).Table(m.table).Debug().Where("status = ?", StatusReceived).Count(&pendingCount)
-	if dbTx.Error != nil {
-		return nil, utils.ConvertMysqlErrToDbErr(dbTx.Error)
+	row = m.db.QueryRowWithTimeout(query, StatusReceived)
+	err = row.Scan(&pendingCount)
+	if err != nil {
+		return nil, utils.ConvertMysqlErrToDbErr(err)
 	}
 	counts = append(counts, pendingCount)
 
 	var finishedCount int64
-	dbTx = m.DB.Clauses(utils.MaxExecutionTimeHint).Table(m.table).Debug().Where("status = ?", StatusFinished).Count(&finishedCount)
-	if dbTx.Error != nil {
-		return nil, utils.ConvertMysqlErrToDbErr(dbTx.Error)
+	row = m.db.QueryRowWithTimeout(query, StatusFinished)
+	err = row.Scan(&finishedCount)
+	if err != nil {
+		return nil, utils.ConvertMysqlErrToDbErr(err)
 	}
 	counts = append(counts, finishedCount)
+
 	return counts, nil
 }

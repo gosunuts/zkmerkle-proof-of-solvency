@@ -5,8 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -15,24 +13,12 @@ import (
 	"github.com/binance/zkmerkle-proof-of-solvency/src/utils"
 	"github.com/binance/zkmerkle-proof-of-solvency/src/witness/witness"
 	"github.com/redis/go-redis/v9"
-	"gorm.io/driver/mysql"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 func TestMockProver(t *testing.T) {
-	newLogger := logger.New(
-		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
-		logger.Config{
-			SlowThreshold:             60 * time.Second, // Slow SQL threshold
-			LogLevel:                  logger.Silent,    // Log level
-			IgnoreRecordNotFoundError: true,             // Ignore ErrRecordNotFound error for logger
-			Colorful:                  false,            // Disable color
-		},
-	)
 	t.Log("TestWitnessModel")
 	dbUri := "zkpos:zkpos@123@tcp(127.0.0.1:3306)/zkpos?parseTime=true"
-	db, err := gorm.Open(mysql.Open(dbUri), &gorm.Config{Logger: newLogger})
+	db, err := utils.NewDB(dbUri)
 	if err != nil {
 		t.Errorf("error: %s\n", err.Error())
 	}
@@ -112,7 +98,7 @@ func TestMockProver(t *testing.T) {
 		t.Fatal("task queue length is not equal to 100000")
 	}
 
-	config := &config.Config{
+	cfg := &config.Config{
 		MysqlDataSource: dbUri,
 		DbSuffix:        "test",
 		Redis: struct {
@@ -122,14 +108,14 @@ func TestMockProver(t *testing.T) {
 			Host: "127.0.0.1:6379",
 		},
 	}
-	p := NewProver(config)
+	p := NewProver(cfg)
 	p.proofModel.DropProofTable()
 	var wg sync.WaitGroup
 	for i := 0; i < 128; i++ {
 		wg.Add(1)
 		go func(index int) {
 			defer wg.Done()
-			prover := NewProver(config)
+			prover := NewProver(cfg)
 			prover.proofModel.CreateProofTable()
 			for {
 				var batchWitnesses []*witness.BatchWitness

@@ -7,7 +7,6 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/poseidon"
-	"gorm.io/hints"
 )
 
 const (
@@ -104,8 +103,7 @@ var (
 	AssetCountsTiers = make([]int, 0)
 
 	// one Fr element is 252 bits, it contains 16 16-bit elements at most
-	PowersOfSixteenBits  [15]fr.Element
-	MaxExecutionTimeHint = hints.New("MAX_EXECUTION_TIME(10000)")
+	PowersOfSixteenBits [15]fr.Element
 )
 
 func init() {

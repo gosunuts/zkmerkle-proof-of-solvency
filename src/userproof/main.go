@@ -6,8 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
-	"os"
 	"runtime"
 	"sort"
 	"time"
@@ -17,9 +15,6 @@ import (
 	"github.com/binance/zkmerkle-proof-of-solvency/src/utils"
 	bsmt "github.com/bnb-chain/zkbnb-smt"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/poseidon"
-	"gorm.io/driver/mysql"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 func HandleUserData(userProofConfig *config.Config) map[int][]utils.AccountInfo {
@@ -317,18 +312,7 @@ func ConvertAccount(account *utils.AccountInfo, leafHash []byte, proof [][]byte,
 }
 
 func OpenUserProofTable(userConfig *config.Config) model.UserProofModel {
-	newLogger := logger.New(
-		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
-		logger.Config{
-			SlowThreshold:             60 * time.Second, // Slow SQL threshold
-			LogLevel:                  logger.Silent,    // Log level
-			IgnoreRecordNotFoundError: true,             // Ignore ErrRecordNotFound error for logger
-			Colorful:                  false,            // Disable color
-		},
-	)
-	db, err := gorm.Open(mysql.Open(userConfig.MysqlDataSource), &gorm.Config{
-		Logger: newLogger,
-	})
+	db, err := utils.NewDB(userConfig.MysqlDataSource)
 	if err != nil {
 		panic(err.Error())
 	}

@@ -1,8 +1,11 @@
 package prover
 
 import (
+	"database/sql"
+	"fmt"
+	"time"
+
 	"github.com/binance/zkmerkle-proof-of-solvency/src/utils"
-	"gorm.io/gorm"
 )
 
 const (
@@ -23,17 +26,20 @@ type (
 
 	defaultProofModel struct {
 		table string
-		DB    *gorm.DB
+		db    *utils.DB
 	}
 
 	Proof struct {
-		gorm.Model
+		ID                      uint64
+		CreatedAt               time.Time
+		UpdatedAt               time.Time
+		DeletedAt               *time.Time
 		ProofInfo               string
 		CexAssetListCommitments string
 		AccountTreeRoots        string
 		BatchCommitment         string
 		AssetsCount             int
-		BatchNumber             int64 `gorm:"index:idx_number,unique"`
+		BatchNumber             int64
 	}
 )
 
@@ -41,88 +47,123 @@ func (m *defaultProofModel) TableName() string {
 	return m.table
 }
 
-func NewProofModel(db *gorm.DB, suffix string) ProofModel {
+func NewProofModel(db *utils.DB, suffix string) ProofModel {
 	return &defaultProofModel{
 		table: TableNamePrefix + suffix,
-		DB:    db,
+		db:    db,
 	}
 }
 
 func (m *defaultProofModel) CreateProofTable() error {
-	return m.DB.Table(m.table).AutoMigrate(Proof{})
+	query := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+		id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+		deleted_at TIMESTAMP NULL DEFAULT NULL,
+		proof_info LONGTEXT NOT NULL,
+		cex_asset_list_commitments TEXT NOT NULL,
+		account_tree_roots TEXT NOT NULL,
+		batch_commitment TEXT NOT NULL,
+		assets_count INT NOT NULL,
+		batch_number BIGINT NOT NULL UNIQUE
+	)`, m.table)
+	_, err := m.db.Exec(query)
+	return err
 }
 
 func (m *defaultProofModel) DropProofTable() error {
-	return m.DB.Migrator().DropTable(m.table)
+	query := fmt.Sprintf("DROP TABLE IF EXISTS %s", m.table)
+	_, err := m.db.Exec(query)
+	return err
 }
 
 func (m *defaultProofModel) CreateProof(row *Proof) error {
-	dbTx := m.DB.Table(m.table).Create(row)
-	if dbTx.Error != nil {
-		return dbTx.Error
+	query := fmt.Sprintf("INSERT INTO %s (proof_info, cex_asset_list_commitments, account_tree_roots, batch_commitment, assets_count, batch_number, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())", m.table)
+	result, err := m.db.Exec(query, row.ProofInfo, row.CexAssetListCommitments, row.AccountTreeRoots, row.BatchCommitment, row.AssetsCount, row.BatchNumber)
+	if err != nil {
+		return err
 	}
-	if dbTx.RowsAffected == 0 {
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
 		return utils.DbErrSqlOperation
 	}
 	return nil
 }
 
 func (m *defaultProofModel) GetProofsBetween(start int64, end int64) (proofs []*Proof, err error) {
-	dbTx := m.DB.Clauses(utils.MaxExecutionTimeHint).Debug().Table(m.table).Where("batch_number >= ? AND batch_number <= ?",
-		start,
-		end).
-		Order("batch_number").
-		Find(&proofs)
+	query := fmt.Sprintf("SELECT id, created_at, updated_at, deleted_at, proof_info, cex_asset_list_commitments, account_tree_roots, batch_commitment, assets_count, batch_number FROM %s WHERE batch_number >= ? AND batch_number <= ? AND deleted_at IS NULL ORDER BY batch_number", m.table)
+	rows, err := m.db.QueryWithTimeout(query, start, end)
+	if err != nil {
+		return nil, utils.ConvertMysqlErrToDbErr(err)
+	}
+	defer rows.Close()
 
-	if dbTx.Error != nil {
-		return proofs, utils.ConvertMysqlErrToDbErr(dbTx.Error)
-	} else if dbTx.RowsAffected == 0 {
-		return nil, utils.DbErrNotFound
+	for rows.Next() {
+		proof := &Proof{}
+		err = rows.Scan(&proof.ID, &proof.CreatedAt, &proof.UpdatedAt, &proof.DeletedAt, &proof.ProofInfo, &proof.CexAssetListCommitments, &proof.AccountTreeRoots, &proof.BatchCommitment, &proof.AssetsCount, &proof.BatchNumber)
+		if err != nil {
+			return nil, err
+		}
+		proofs = append(proofs, proof)
 	}
 
-	return proofs, err
+	if len(proofs) == 0 {
+		return nil, utils.DbErrNotFound
+	}
+	return proofs, nil
 }
 
 func (m *defaultProofModel) GetLatestProof() (p *Proof, err error) {
-	var row *Proof
-	dbTx := m.DB.Clauses(utils.MaxExecutionTimeHint).Table(m.table).Order("batch_number desc").Limit(1).Find(&row)
-	if dbTx.Error != nil {
-		return nil, utils.ConvertMysqlErrToDbErr(dbTx.Error)
-	} else if dbTx.RowsAffected == 0 {
+	row := &Proof{}
+	query := fmt.Sprintf("SELECT id, created_at, updated_at, deleted_at, proof_info, cex_asset_list_commitments, account_tree_roots, batch_commitment, assets_count, batch_number FROM %s WHERE deleted_at IS NULL ORDER BY batch_number DESC LIMIT 1", m.table)
+	dbRow := m.db.QueryRowWithTimeout(query)
+	err = dbRow.Scan(&row.ID, &row.CreatedAt, &row.UpdatedAt, &row.DeletedAt, &row.ProofInfo, &row.CexAssetListCommitments, &row.AccountTreeRoots, &row.BatchCommitment, &row.AssetsCount, &row.BatchNumber)
+	if err == sql.ErrNoRows {
 		return nil, utils.DbErrNotFound
-	} else {
-		return row, nil
 	}
+	if err != nil {
+		return nil, utils.ConvertMysqlErrToDbErr(err)
+	}
+	return row, nil
 }
 
 func (m *defaultProofModel) GetLatestConfirmedProof() (p *Proof, err error) {
-	var row *Proof
-	dbTx := m.DB.Clauses(utils.MaxExecutionTimeHint).Table(m.table).Order("batch_number desc").Limit(1).Find(&row)
-	if dbTx.Error != nil {
-		return nil, utils.ConvertMysqlErrToDbErr(dbTx.Error)
-	} else if dbTx.RowsAffected == 0 {
+	row := &Proof{}
+	query := fmt.Sprintf("SELECT id, created_at, updated_at, deleted_at, proof_info, cex_asset_list_commitments, account_tree_roots, batch_commitment, assets_count, batch_number FROM %s WHERE deleted_at IS NULL ORDER BY batch_number DESC LIMIT 1", m.table)
+	dbRow := m.db.QueryRowWithTimeout(query)
+	err = dbRow.Scan(&row.ID, &row.CreatedAt, &row.UpdatedAt, &row.DeletedAt, &row.ProofInfo, &row.CexAssetListCommitments, &row.AccountTreeRoots, &row.BatchCommitment, &row.AssetsCount, &row.BatchNumber)
+	if err == sql.ErrNoRows {
 		return nil, utils.DbErrNotFound
-	} else {
-		return row, nil
 	}
+	if err != nil {
+		return nil, utils.ConvertMysqlErrToDbErr(err)
+	}
+	return row, nil
 }
 
 func (m *defaultProofModel) GetProofByBatchNumber(num int64) (p *Proof, err error) {
-	var row *Proof
-	dbTx := m.DB.Clauses(utils.MaxExecutionTimeHint).Table(m.table).Where("batch_number = ?", num).Find(&row)
-	if dbTx.Error != nil {
-		return nil, utils.ConvertMysqlErrToDbErr(dbTx.Error)
-	} else if dbTx.RowsAffected == 0 {
+	row := &Proof{}
+	query := fmt.Sprintf("SELECT id, created_at, updated_at, deleted_at, proof_info, cex_asset_list_commitments, account_tree_roots, batch_commitment, assets_count, batch_number FROM %s WHERE batch_number = ? AND deleted_at IS NULL LIMIT 1", m.table)
+	dbRow := m.db.QueryRowWithTimeout(query, num)
+	err = dbRow.Scan(&row.ID, &row.CreatedAt, &row.UpdatedAt, &row.DeletedAt, &row.ProofInfo, &row.CexAssetListCommitments, &row.AccountTreeRoots, &row.BatchCommitment, &row.AssetsCount, &row.BatchNumber)
+	if err == sql.ErrNoRows {
 		return nil, utils.DbErrNotFound
-	} else {
-		return row, nil
 	}
+	if err != nil {
+		return nil, utils.ConvertMysqlErrToDbErr(err)
+	}
+	return row, nil
 }
 
 func (m *defaultProofModel) GetRowCounts() (count int64, err error) {
-	dbTx := m.DB.Clauses(utils.MaxExecutionTimeHint).Table(m.table).Count(&count)
-	if dbTx.Error != nil {
-		return 0, utils.ConvertMysqlErrToDbErr(dbTx.Error)
+	query := fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE deleted_at IS NULL", m.table)
+	row := m.db.QueryRowWithTimeout(query)
+	err = row.Scan(&count)
+	if err != nil {
+		return 0, utils.ConvertMysqlErrToDbErr(err)
 	}
 	return count, nil
 }

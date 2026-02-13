@@ -6,8 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"log"
-	"os"
 	"time"
 
 	"github.com/binance/zkmerkle-proof-of-solvency/src/dbtool/config"
@@ -16,9 +14,6 @@ import (
 	"github.com/binance/zkmerkle-proof-of-solvency/src/utils"
 	"github.com/binance/zkmerkle-proof-of-solvency/src/witness/witness"
 	"github.com/redis/go-redis/v9"
-	"gorm.io/driver/mysql"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 func main() {
@@ -43,16 +38,6 @@ func main() {
 
 	flag.Parse()
 
-	newLogger := logger.New(
-		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
-		logger.Config{
-			SlowThreshold:             60 * time.Second, // Slow SQL threshold
-			LogLevel:                  logger.Silent,    // Log level
-			IgnoreRecordNotFoundError: true,             // Ignore ErrRecordNotFound error for logger
-			Colorful:                  false,            // Disable color
-		},
-	)
-
 	if *remotePasswdConfig != "" {
 		s, err := utils.GetMysqlSource(dbtoolConfig.MysqlDataSource, *remotePasswdConfig)
 		if err != nil {
@@ -61,7 +46,7 @@ func main() {
 		dbtoolConfig.MysqlDataSource = s
 	}
 	if *deleteAllData {
-		db, err := gorm.Open(mysql.Open(dbtoolConfig.MysqlDataSource))
+		db, err := utils.NewDB(dbtoolConfig.MysqlDataSource)
 		if err != nil {
 			panic(err.Error())
 		}
@@ -115,9 +100,7 @@ func main() {
 	}
 
 	if *checkProverStatus {
-		db, err := gorm.Open(mysql.Open(dbtoolConfig.MysqlDataSource), &gorm.Config{
-			Logger: newLogger,
-		})
+		db, err := utils.NewDB(dbtoolConfig.MysqlDataSource)
 		if err != nil {
 			panic(err.Error())
 		}
@@ -161,7 +144,7 @@ func main() {
 	}
 
 	if *queryCexAssetsConfig {
-		db, err := gorm.Open(mysql.Open(dbtoolConfig.MysqlDataSource))
+		db, err := utils.NewDB(dbtoolConfig.MysqlDataSource)
 		if err != nil {
 			panic(err.Error())
 		}
@@ -186,9 +169,7 @@ func main() {
 	}
 
 	if *queryWitnessData != -1 {
-		db, err := gorm.Open(mysql.Open(dbtoolConfig.MysqlDataSource), &gorm.Config{
-			Logger: newLogger,
-		})
+		db, err := utils.NewDB(dbtoolConfig.MysqlDataSource)
 		if err != nil {
 			panic(err.Error())
 		}
@@ -202,9 +183,7 @@ func main() {
 	}
 
 	if *queryAccountData != -1 {
-		db, err := gorm.Open(mysql.Open(dbtoolConfig.MysqlDataSource), &gorm.Config{
-			Logger: newLogger,
-		})
+		db, err := utils.NewDB(dbtoolConfig.MysqlDataSource)
 		if err != nil {
 			panic(err.Error())
 		}
@@ -218,9 +197,7 @@ func main() {
 	}
 
 	if *pushTaskToRedis {
-		db, err := gorm.Open(mysql.Open(dbtoolConfig.MysqlDataSource), &gorm.Config{
-			Logger: newLogger,
-		})
+		db, err := utils.NewDB(dbtoolConfig.MysqlDataSource)
 		if err != nil {
 			panic(err.Error())
 		}

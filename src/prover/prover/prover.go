@@ -22,9 +22,6 @@ import (
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/redis/go-redis/v9"
-
-	"gorm.io/driver/mysql"
-	"gorm.io/gorm"
 )
 
 type Prover struct {
@@ -43,7 +40,7 @@ type Prover struct {
 }
 
 func NewProver(config *config.Config) *Prover {
-	db, err := gorm.Open(mysql.Open(config.MysqlDataSource))
+	db, err := utils.NewDB(config.MysqlDataSource)
 	if err != nil {
 		panic(err.Error())
 	}

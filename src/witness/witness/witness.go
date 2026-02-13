@@ -5,8 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/gob"
 	"fmt"
-	"log"
-	"os"
 	"runtime"
 	"sort"
 	"sync/atomic"
@@ -19,9 +17,6 @@ import (
 	bsmt "github.com/bnb-chain/zkbnb-smt"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr/poseidon"
 	"github.com/klauspost/compress/s2"
-	"gorm.io/driver/mysql"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 type Witness struct {
@@ -30,7 +25,7 @@ type Witness struct {
 	witnessModel             WitnessModel
 	ops                      map[int][]utils.AccountInfo
 	cexAssets                []utils.CexAssetInfo
-	db                       *gorm.DB
+	db                       *utils.DB
 	ch                       chan BatchWitness
 	quit                     chan int
 	accountHashChan          map[int][]chan []byte
@@ -42,18 +37,7 @@ type Witness struct {
 func NewWitness(accountTree bsmt.SparseMerkleTree, totalOpsNumber uint32,
 	ops map[int][]utils.AccountInfo, cexAssets []utils.CexAssetInfo,
 	config *config.Config) *Witness {
-	newLogger := logger.New(
-		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
-		logger.Config{
-			SlowThreshold:             60 * time.Second, // Slow SQL threshold
-			LogLevel:                  logger.Silent,    // Log level
-			IgnoreRecordNotFoundError: true,             // Ignore ErrRecordNotFound error for logger
-			Colorful:                  false,            // Disable color
-		},
-	)
-	db, err := gorm.Open(mysql.Open(config.MysqlDataSource), &gorm.Config{
-		Logger: newLogger,
-	})
+	db, err := utils.NewDB(config.MysqlDataSource)
 	if err != nil {
 		panic(err.Error())
 	}
